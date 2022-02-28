@@ -11,22 +11,31 @@ if (flutterRoot == null) {
     throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
 }
 
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
-}
+def flutterVersionCode = '1'
+def flutterVersionName = '1.0.0'
 
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
-}
+def dartEnvironmentVariables = [DEFINECONFIANZA_APP_SUFFIX: "dev", DEFINECONFIANZA_APP_NAME: "DEVFinancieraConfianza"];
 
+if (project.hasProperty('dart-defines')) {
+    dartEnvironmentVariables = dartEnvironmentVariables + project.property('dart-defines')
+            .split(',')
+            .collectEntries { entry ->
+                def pair = new String(entry.decodeBase64(), 'UTF-8').split('=')
+                [(pair.first()): pair.last()]
+            }
+}
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    compileSdkVersion flutter.compileSdkVersion
+    compileSdkVersion 32
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -41,20 +50,53 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
 
-    defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId "com.financieraconfianza.financiera_confianza"
-        minSdkVersion flutter.minSdkVersion
-        targetSdkVersion flutter.targetSdkVersion
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+    lintOptions {
+        disable 'InvalidPackage'
+        checkReleaseBuilds false
     }
 
-    buildTypes {
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId "com.financieraconfianza"
+        minSdkVersion 21
+        targetSdkVersion 32
+        multiDexEnabled true
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        resValue "string", "app_name", "${dartEnvironmentVariables.DEFINECONFIANZA_APP_NAME}"
+    }
+
+    signingConfigs {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig signingConfigs.debug
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            def buildType = variant.buildType.name.toUpperCase()
+            def date = new Date().format('yyyyMMdd')
+            def versionName = variant.versionName
+            def versionCode = variant.versionCode
+            outputFileName = "${dartEnvironmentVariables.DEFINECONFIANZA_APP_NAME}-${buildType}-${date}-${versionName}-(${versionCode}).apk"
+        }
+    }
+
+    flavorDimensions "environment"
+    productFlavors {
+
+        dev {
+            dimension "environment"
+            applicationIdSuffix ".${dartEnvironmentVariables.DEFINECONFIANZA_APP_SUFFIX}"
+            resValue "string","key_google_maps",""
+        }
+
+        prod {
+            dimension "environment"
+            resValue "string","key_google_maps",""
         }
     }
 }
